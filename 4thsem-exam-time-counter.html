@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTU 4th Sem · Exam Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --night-bg: #080810;
+            --day-bg: #c8dff7;
+            --bg-glass-dark: rgba(10, 10, 18, 0.72);
+            --bg-glass-light: rgba(255, 255, 255, 0.75);
+            --text-primary-dark: #f0f2ff;
+            --text-secondary-dark: rgba(200, 205, 240, 0.65);
+            --text-primary-light: #0c1340;
+            --text-secondary-light: rgba(20, 40, 100, 0.6);
+            --accent-violet: #7c6df8;
+            --accent-indigo: #818cf8;
+            --accent-purple: #a78bfa;
+            --accent-cyan: #22d3ee;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-sky: #0ea5e9;
+            --radius-xl: 28px;
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --radius-pill: 999px;
+            --font-ui: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --blur: blur(20px);
+            --blur-heavy: blur(32px);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--night-bg);
+            color: var(--text-primary-dark);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background 1s ease, color 0.4s ease;
+        }
+        body.day {
+            background: var(--day-bg);
+            color: var(--text-primary-light);
+        }
+
+        #bg-canvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ══════════════════════════════════════════
+           TOP HUD BAR  –  slim, horizontal, premium
+        ══════════════════════════════════════════ */
+        .hud-bar {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-glass-dark);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: var(--radius-pill);
+            padding: 8px 16px;
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+            white-space: nowrap;
+            transition: background 0.5s ease, border-color 0.5s ease;
+        }
+        body.day .hud-bar {
+            background: var(--bg-glass-light);
+            border-color: rgba(0,0,0,0.07);
+            box-shadow: 0 8px 32px rgba(10,30,80,0.12), inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .hud-logo {
+            font-family: var(--font-ui);
+            font-weight: 700;
+            font-size: 0.82rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--accent-violet), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hud-sep {
+            width: 1px;
+            height: 16px;
+            background: rgba(255,255,255,0.15);
+            flex-shrink: 0;
+        }
+        body.day .hud-sep { background: rgba(0,0,0,0.1); }
+        .hud-clock {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--text-primary-dark);
+            opacity: 0.9;
+        }
+        body.day .hud-clock { color: var(--text-primary-light); }
+        .hud-live-badge {
+            display: flex; align-items: center; gap: 5px;
+            font-size: 0.7rem; font-weight: 600;
+            color: var(--accent-emerald);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .hud-live-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--accent-emerald);
+            box-shadow: 0 0 8px var(--accent-emerald);
+            animation: livepulse 2s infinite;
+        }
+        @keyframes livepulse {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.4); }
+        }
+        /* Controls cluster */
+        .hud-controls {
+            display: flex; align-items: center; gap: 6px;
+        }
+        .hud-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-primary-dark);
+            padding: 6px 14px;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.3px;
+            display: flex; align-items: center; gap: 6px;
+            transition: all 0.25s ease;
+        }
+        body.day .hud-btn {
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(0,0,0,0.1);
+            color: var(--text-primary-light);
+        }
+        .hud-btn:hover {
+            background: rgba(124,109,248,0.2);
+            border-color: var(--accent-violet);
+            transform: translateY(-1px);
+        }
+        /* The Day/Night toggle as a real switch */
+        .sky-toggle {
+            position: relative;
+            width: 56px; height: 28px;
+            cursor: pointer;
+        }
+        .sky-toggle input { display: none; }
+        .sky-track {
+            position: absolute; inset: 0;
+            border-radius: var(--radius-pill);
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            transition: background 0.4s ease;
+            display: flex; align-items: center;
+            padding: 0 4px;
+        }
+        body.day .sky-track {
+            background: rgba(0,0,0,0.05);
+            border-color: rgba(0,0,0,0.1);
+        }
+        .sky-thumb {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4f46e5, #818cf8);
+            box-shadow: 0 2px 8px rgba(79,70,229,0.5);
+            transition: transform 0.4s cubic-bezier(.34,1.56,.64,1), background 0.4s ease;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem;
+            flex-shrink: 0;
+        }
+        input:checked ~ .sky-thumb,
+        .sky-toggle.checked .sky-thumb {
+            transform: translateX(28px);
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            box-shadow: 0 2px 12px rgba(251,191,36,0.6);
+        }
+
+        /* ══════════════════════════════════════════
+           MAIN SCROLL CONTAINER
+        ══════════════════════════════════════════ */
+        .page-wrap {
+            position: relative;
+            z-index: 10;
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 88px 24px 60px;
+        }
+
+        /* ══════════════════════════════════════════
+           HERO COUNTDOWN  –  stunning centre piece
+        ══════════════════════════════════════════ */
+        .hero-zone {
+            text-align: center;
+            padding: 36px 0 48px;
+        }
+        .hero-eyebrow {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            color: var(--accent-violet);
+            background: rgba(124,109,248,0.1);
+            border: 1px solid rgba(124,109,248,0.2);
+            padding: 5px 14px;
+            border-radius: var(--radius-pill);
+            margin-bottom: 20px;
+        }
+        body.day .hero-eyebrow {
+            background: rgba(14,165,233,0.08);
+            border-color: rgba(14,165,233,0.2);
+            color: var(--accent-sky);
+        }
+        .hero-title {
+            font-family: var(--font-ui);
+            font-size: clamp(3.8rem, 10vw, 7.5rem);
+            font-weight: 700;
+            letter-spacing: -4px;
+            line-height: 0.9;
+            margin-bottom: 16px;
+            background: linear-gradient(
+                175deg,
+                #ffffff 0%,
+                rgba(167,139,250,0.9) 55%,
+                rgba(124,109,248,0.7) 100%
+            );
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 40px rgba(124,109,248,0.25));
+        }
+        body.day .hero-title {
+            background: linear-gradient(175deg, #0c1340 0%, #0284c7 60%, #0d9488 100%);
+            -webkit-background-clip: text;
+            filter: drop-shadow(0 0 20px rgba(14,165,233,0.2));
+        }
+        .hero-sub-row {
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px;
+            font-size: 1.15rem;
+            font-weight: 500;
+        }
+        .hero-subject-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--bg-glass-dark);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: var(--radius-pill);
+            backdrop-filter: var(--blur);
+            font-weight: 600;
+        }
+        body.day .hero-subject-badge {
+            background: var(--bg-glass-light);
+            border-color: rgba(0,0,0,0.08);
+        }
+        .hero-code-chip {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(124,109,248,0.18);
+            color: var(--accent-violet);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        body.day .hero-code-chip {
+            background: rgba(14,165,233,0.1);
+            color: var(--accent-sky);
+        }
+
+        /* ══════════════════════════════════════════
+           ALERT TOAST  –  premium notification card
+        ══════════════════════════════════════════ */
+        .alert-toast {
+            display: none;
+            margin-bottom: 32px;
+            animation: toastIn 0.4s cubic-bezier(.34,1.56,.64,1);
+        }
+        .alert-toast.visible { display: block; }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .toast-inner {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 22px;
+            border-radius: var(--radius-lg);
+            background: var(--bg-glass-dark);
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+        }
+        body.day .toast-inner {
+            background: var(--bg-glass-light);
+            border-color: rgba(0,0,0,0.07);
+        }
+        .toast-icon-ring {
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        .toast-body { flex: 1; }
+        .toast-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .toast-message {
+            font-size: 0.95rem;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+        .toast-message strong { font-weight: 700; }
+        .toast-time-pill {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: var(--radius-pill);
+            flex-shrink: 0;
+        }
+        /* Toast colour variants */
+        .toast-ok   .toast-icon-ring { background: rgba(16,185,129,0.15); }
+        .toast-ok   .toast-label     { color: var(--accent-emerald); }
+        .toast-ok   .toast-time-pill { background: rgba(16,185,129,0.12); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.25); }
+        body.day .toast-ok .toast-label { color: #065f46; }
+        body.day .toast-ok .toast-time-pill { color: #065f46; }
+
+        .toast-warn .toast-icon-ring { background: rgba(245,158,11,0.15); }
+        .toast-warn .toast-label     { color: var(--accent-amber); }
+        .toast-warn .toast-time-pill { background: rgba(245,158,11,0.12); color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.25); }
+        body.day .toast-warn .toast-label { color: #92400e; }
+        body.day .toast-warn .toast-time-pill { color: #92400e; }
+
+        .toast-go   .toast-icon-ring { background: rgba(249,115,22,0.15); }
+        .toast-go   .toast-label     { color: #fb923c; }
+        .toast-go   .toast-time-pill { background: rgba(249,115,22,0.12); color: #fb923c; border: 1px solid rgba(249,115,22,0.28); }
+        body.day .toast-go  .toast-label { color: #9a3412; }
+        body.day .toast-go  .toast-time-pill { color: #9a3412; }
+
+        .toast-fire .toast-icon-ring { background: rgba(244,63,94,0.18); animation: flashring 0.8s infinite alternate; }
+        .toast-fire .toast-label     { color: var(--accent-rose); }
+        .toast-fire .toast-time-pill { background: var(--accent-rose); color: #fff; }
+        @keyframes flashring { from { background: rgba(244,63,94,0.18); } to { background: rgba(244,63,94,0.32); } }
+
+        /* ══════════════════════════════════════════
+           EXAM CARDS GRID
+        ══════════════════════════════════════════ */
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            opacity: 0.5;
+            margin-bottom: 16px;
+        }
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+            gap: 16px;
+            perspective: 1200px;
+        }
+        .exam-card {
+            position: relative;
+            border-radius: var(--radius-xl);
+            padding: 24px;
+            background: var(--bg-glass-dark);
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: var(--blur);
+            -webkit-backdrop-filter: var(--blur);
+            transition: transform 0.12s ease, box-shadow 0.3s ease;
+            transform-style: preserve-3d;
+            cursor: default;
+            overflow: hidden;
+        }
+        body.day .exam-card {
+            background: var(--bg-glass-light);
+            border-color: rgba(0,0,0,0.07);
+            box-shadow: 0 8px 24px rgba(10,30,80,0.08);
+        }
+        .exam-card:hover {
+            box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+        }
+        body.day .exam-card:hover {
+            box-shadow: 0 16px 40px rgba(10,30,80,0.14);
+        }
+        /* Cursor-tracking spotlight glow */
+        .card-spotlight {
+            position: absolute;
+            width: 280px; height: 280px;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%,-50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 0;
+            background: radial-gradient(circle, rgba(124,109,248,0.13) 0%, transparent 70%);
+        }
+        body.day .card-spotlight {
+            background: radial-gradient(circle, rgba(14,165,233,0.1) 0%, transparent 70%);
+        }
+        .card-body { position: relative; z-index: 2; }
+
+        /* Next-up card animated rainbow border */
+        .exam-card.is-next {
+            border: none;
+        }
+        .exam-card.is-next::before {
+            content: '';
+            position: absolute; inset: 0;
+            border-radius: var(--radius-xl);
+            padding: 1.5px;
+            background: linear-gradient(var(--angle, 0deg),
+                #818cf8, #c084fc, #f43f5e, #f59e0b, #10b981, #22d3ee, #818cf8);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: spinangle 4s linear infinite;
+            z-index: 1;
+        }
+        @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+        @keyframes spinangle { to { --angle: 360deg; } }
+        /* Fallback for browsers without @property: simple opacity pulse */
+        @supports not (background: paint(x)) {
+            .exam-card.is-next::before {
+                animation: fallbackGlow 3s ease-in-out infinite alternate;
+                background: linear-gradient(90deg, #818cf8, #c084fc, #f43f5e, #10b981, #818cf8);
+            }
+            @keyframes fallbackGlow {
+                from { opacity: 0.6; }
+                to   { opacity: 1.0; }
+            }
+        }
+
+        /* Done card */
+        .exam-card.is-done {
+            opacity: 0.38;
+            filter: saturate(0.2);
+        }
+
+        /* Card internals */
+        .card-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 18px;
+        }
+        /* Tear-off calendar widget */
+        .cal-widget {
+            width: 58px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25), inset 0 -2px 0 rgba(0,0,0,0.15);
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        body.day .cal-widget { border-color: rgba(0,0,0,0.06); }
+        .cal-month {
+            padding: 3px 0;
+            text-align: center;
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #fff;
+        }
+        .cal-day {
+            background: var(--bg-glass-dark);
+            text-align: center;
+            padding: 5px 0;
+            font-family: var(--font-ui);
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        body.day .cal-day {
+            background: rgba(241,245,249,0.95);
+            color: var(--text-primary-light);
+        }
+        /* Status pill badge */
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 0.7rem; font-weight: 700;
+            letter-spacing: 0.8px; text-transform: uppercase;
+            padding: 5px 11px;
+            border-radius: var(--radius-pill);
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        body.day .status-pill {
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(0,0,0,0.1);
+        }
+        .status-dot {
+            width: 5px; height: 5px;
+            border-radius: 50%;
+        }
+        .card-subject {
+            font-family: var(--font-ui);
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+        .card-code {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            opacity: 0.5;
+            margin-bottom: 20px;
+        }
+        .card-footer-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.82rem;
+        }
+        body.day .card-footer-row { border-color: rgba(0,0,0,0.07); }
+        .card-time-label {
+            display: flex; align-items: center; gap: 6px;
+            opacity: 0.6;
+            font-weight: 500;
+        }
+        .card-countdown-chip {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 4px 11px;
+            border-radius: var(--radius-pill);
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+        }
+        body.day .card-countdown-chip {
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(0,0,0,0.09);
+        }
+
+        /* ══════════════════════════════════════════
+           COMMUTE MODAL
+        ══════════════════════════════════════════ */
+        .modal-scrim {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: var(--blur-heavy);
+            -webkit-backdrop-filter: var(--blur-heavy);
+            z-index: 500;
+            display: none; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .modal-scrim.open { display: flex; opacity: 1; }
+        .modal-card {
+            background: rgba(14,14,24,0.92);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: var(--radius-xl);
+            padding: 36px 32px;
+            max-width: 460px; width: 90%;
+            text-align: center;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+            transform: scale(0.92) translateY(20px);
+            transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
+        }
+        body.day .modal-card {
+            background: rgba(255,255,255,0.92);
+            border-color: rgba(0,0,0,0.08);
+        }
+        .modal-scrim.open .modal-card { transform: scale(1) translateY(0); }
+        .modal-card h3 {
+            font-family: var(--font-ui);
+            font-size: 1.4rem; font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .modal-card p {
+            font-size: 0.88rem; opacity: 0.6;
+            line-height: 1.5; margin-bottom: 24px;
+        }
+        .commute-options {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            justify-content: center; margin-bottom: 24px;
+        }
+        .commute-btn {
+            padding: 8px 18px;
+            border-radius: var(--radius-pill);
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.05);
+            color: inherit;
+            font-family: var(--font-body); font-weight: 600; font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        body.day .commute-btn {
+            border-color: rgba(0,0,0,0.1);
+            background: rgba(0,0,0,0.03);
+        }
+        .commute-btn.active, .commute-btn:hover {
+            background: var(--accent-violet);
+            border-color: var(--accent-violet);
+            color: #fff;
+            box-shadow: 0 0 18px rgba(124,109,248,0.35);
+        }
+        .modal-save {
+            background: transparent; border: none;
+            font-family: var(--font-body); font-size: 0.85rem;
+            font-weight: 600; text-decoration: underline;
+            opacity: 0.5; cursor: pointer; color: inherit;
+        }
+
+        /* ══════════════════════════════════════════
+           FOCUS MODE FULL-SCREEN
+        ══════════════════════════════════════════ */
+        .focus-scrim {
+            position: fixed; inset: 0;
+            background: rgba(4,4,10,0.93);
+            backdrop-filter: var(--blur-heavy);
+            -webkit-backdrop-filter: var(--blur-heavy);
+            z-index: 400;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        .focus-scrim.open { opacity: 1; pointer-events: all; }
+        .focus-exit {
+            position: absolute; top: 24px; right: 24px;
+            padding: 8px 18px;
+            border-radius: var(--radius-pill);
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: #fff; font-weight: 600; font-size: 0.8rem;
+            cursor: pointer; transition: all 0.25s ease;
+        }
+        .focus-exit:hover {
+            background: var(--accent-rose);
+            border-color: var(--accent-rose);
+        }
+        .focus-center {
+            text-align: center; max-width: 560px; width: 90%;
+        }
+        .focus-eyebrow {
+            font-family: var(--font-mono);
+            font-size: 0.72rem; font-weight: 700;
+            letter-spacing: 3px; text-transform: uppercase;
+            color: var(--accent-violet);
+            margin-bottom: 8px;
+        }
+        .focus-subject {
+            font-family: var(--font-ui);
+            font-size: clamp(1.5rem, 4vw, 2.4rem);
+            font-weight: 700; line-height: 1.2;
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, #f0f2ff, var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        /* Ring */
+        .ring-wrap {
+            position: relative; width: 280px; height: 280px;
+            margin: 0 auto 32px;
+        }
+        .ring-svg { transform: rotate(-90deg); }
+        .ring-track { stroke: rgba(255,255,255,0.04); }
+        .ring-progress {
+            stroke: var(--accent-violet);
+            stroke-dasharray: 753.98; /* 2π × 120 */
+            stroke-dashoffset: 753.98;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 10px var(--accent-violet));
+            transition: stroke-dashoffset 0.1s linear;
+        }
+        .ring-inner {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 4px;
+        }
+        #focus-hms {
+            font-family: var(--font-ui);
+            font-size: 2rem; font-weight: 700;
+            letter-spacing: -1px; color: #fff;
+        }
+        #focus-days-label {
+            font-size: 0.72rem; font-weight: 700;
+            letter-spacing: 2px; text-transform: uppercase;
+            opacity: 0.4;
+        }
+        #focus-ms {
+            font-family: var(--font-mono);
+            font-size: 1.1rem; font-weight: 700;
+            color: var(--accent-purple);
+            opacity: 0.85;
+        }
+        /* Focus stats row */
+        .focus-stats {
+            display: flex; gap: 12px; justify-content: center;
+            margin-bottom: 24px;
+        }
+        .fstat {
+            flex: 1; max-width: 140px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: var(--radius-lg);
+            padding: 14px 12px;
+            text-align: center;
+        }
+        .fstat-val {
+            font-family: var(--font-mono);
+            font-size: 1.05rem; font-weight: 700;
+            color: #fff; margin-bottom: 4px;
+        }
+        .fstat-label {
+            font-size: 0.66rem; font-weight: 600;
+            letter-spacing: 1.5px; text-transform: uppercase;
+            opacity: 0.4;
+        }
+        /* Focus toast */
+        .focus-toast {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 12px 22px;
+            border-radius: var(--radius-pill);
+            font-size: 0.87rem; font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.04);
+        }
+
+        /* ══════════════════════════════════════════
+           RESPONSIVE
+        ══════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            .hud-bar { max-width: calc(100vw - 32px); flex-wrap: wrap; }
+            .hud-logo { font-size: 0.72rem; }
+            .hud-btn span.label { display: none; }
+            .page-wrap { padding: 100px 16px 40px; }
+            .hero-title { letter-spacing: -2px; }
+            .cards-grid { grid-template-columns: 1fr; }
+            .ring-wrap { width: 240px; height: 240px; }
+            #focus-hms { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<!-- ══ TOP HUD BAR ══ -->
+<div class="hud-bar">
+    <div class="hud-live-badge">
+        <div class="hud-live-dot"></div>
+        LIVE
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-logo">VTU 4th Sem</div>
+    <div class="hud-sep"></div>
+    <div class="hud-clock" id="hud-clock">00:00:00</div>
+    <div class="hud-sep"></div>
+    <div class="hud-controls">
+        <button class="hud-btn" id="focus-btn">
+            <span>⏱</span><span class="label"> Focus</span>
+        </button>
+        <button class="hud-btn" id="commute-btn">
+            <span>🚌</span><span class="label"> Commute</span>
+        </button>
+        <!-- Sky toggle switch -->
+        <label class="sky-toggle" id="sky-toggle" title="Day / Night">
+            <input type="checkbox" id="sky-checkbox">
+            <div class="sky-track"></div>
+            <div class="sky-thumb" id="sky-thumb">🌙</div>
+        </label>
+    </div>
+</div>
+
+<!-- ══ COMMUTE MODAL ══ -->
+<div class="modal-scrim" id="commute-modal">
+    <div class="modal-card">
+        <h3>Commute Time</h3>
+        <p>How long does it take you to reach the exam centre? We'll alert you when it's time to leave.</p>
+        <div class="commute-options" id="commute-options">
+            <button class="commute-btn" data-t="15">15 min</button>
+            <button class="commute-btn" data-t="30">30 min</button>
+            <button class="commute-btn" data-t="45">45 min</button>
+            <button class="commute-btn active" data-t="60">1 hour</button>
+            <button class="commute-btn" data-t="90">1.5 hrs</button>
+            <button class="commute-btn" data-t="120">2 hours</button>
+        </div>
+        <button class="modal-save" id="commute-save">Save &amp; Close</button>
+    </div>
+</div>
+
+<!-- ══ FOCUS OVERLAY ══ -->
+<div class="focus-scrim" id="focus-scrim">
+    <button class="focus-exit" id="focus-exit">✕ Exit Focus</button>
+    <div class="focus-center">
+        <div class="focus-eyebrow" id="f-code">BCS401</div>
+        <div class="focus-subject" id="f-name">Loading…</div>
+        <div class="ring-wrap">
+            <svg class="ring-svg" width="280" height="280" viewBox="0 0 280 280">
+                <circle class="ring-track" cx="140" cy="140" r="120" fill="none" stroke-width="8"/>
+                <circle class="ring-progress" id="ring-progress" cx="140" cy="140" r="120" fill="none" stroke-width="10"/>
+            </svg>
+            <div class="ring-inner">
+                <div id="focus-days-label">DAYS LEFT</div>
+                <div id="focus-hms">--:--:--</div>
+                <div id="focus-ms">.--</div>
+            </div>
+        </div>
+        <div class="focus-stats">
+            <div class="fstat">
+                <div class="fstat-val" id="fs-hours">--</div>
+                <div class="fstat-label">Hours</div>
+            </div>
+            <div class="fstat">
+                <div class="fstat-val" id="fs-secs">--</div>
+                <div class="fstat-label">Seconds</div>
+            </div>
+            <div class="fstat">
+                <div class="fstat-val" id="fs-status">--</div>
+                <div class="fstat-label">Status</div>
+            </div>
+        </div>
+        <div class="focus-toast" id="focus-toast">🟢 Calm preparation phase</div>
+    </div>
+</div>
+
+<!-- ══ MAIN CONTENT ══ -->
+<div class="page-wrap">
+
+    <!-- Hero countdown -->
+    <div class="hero-zone">
+        <div class="hero-eyebrow" id="hero-eye">📅 Next Exam</div>
+        <h1 class="hero-title" id="hero-time">--:--:--</h1>
+        <div class="hero-sub-row">
+            <div class="hero-subject-badge">
+                <span class="hero-code-chip" id="hero-code">--</span>
+                <span id="hero-name">Calculating…</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert toast -->
+    <div class="alert-toast" id="alert-toast">
+        <div class="toast-inner" id="toast-inner">
+            <div class="toast-icon-ring" id="toast-icon">📘</div>
+            <div class="toast-body">
+                <div class="toast-label" id="toast-label">Status</div>
+                <div class="toast-message" id="toast-msg">Loading…</div>
+            </div>
+            <div class="toast-time-pill" id="toast-pill">--</div>
+        </div>
+    </div>
+
+    <!-- Exam cards -->
+    <div class="section-label">Your Exam Schedule</div>
+    <div class="cards-grid" id="cards-grid"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  THREE.JS  –  Advanced 3D Scenic World
+// ═══════════════════════════════════════════════════════
+(function() {
+    let isDayMode = localStorage.getItem('sky') === 'day';
+    const canvas = document.getElementById('bg-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 800);
+    camera.position.set(0, 14, 42);
+    camera.lookAt(0, 3, 0);
+
+    // Sky fog — interpolated
+    const nightFogCol = new THREE.Color(0x080810);
+    const dayFogCol   = new THREE.Color(0xc8dff7);
+    scene.fog = new THREE.Fog(isDayMode ? dayFogCol : nightFogCol, 18, 110);
+
+    // ── LIGHTS ──
+    const ambient = new THREE.AmbientLight(0xffffff, isDayMode ? 0.5 : 0.12);
+    scene.add(ambient);
+
+    // Sun directional light – soft, not blinding
+    const sunDir = new THREE.DirectionalLight(0xfff3d0, isDayMode ? 0.9 : 0.0);
+    scene.add(sunDir);
+
+    // Moon directional light – cool dim purple-blue
+    const moonDir = new THREE.DirectionalLight(0x9090e0, isDayMode ? 0.0 : 0.4);
+    scene.add(moonDir);
+
+    // ── SUN MESH ──
+    // Sun rises from East (right, +X) sweeps over to West (left, -X)
+    const sunGeo = new THREE.SphereGeometry(3.8, 28, 28);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFD040 });
+    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    scene.add(sunMesh);
+    // Outer glow halo
+    const sunHaloGeo = new THREE.SphereGeometry(6.5, 16, 16);
+    const sunHaloMat = new THREE.MeshBasicMaterial({ color: 0xFF9900, transparent: true, opacity: 0.22 });
+    sunMesh.add(new THREE.Mesh(sunHaloGeo, sunHaloMat));
+
+    // ── MOON MESH ──
+    // Moon rises from West (left, -X) sweeps to East (right, +X) — opposite arc
+    const moonGeo = new THREE.SphereGeometry(2.8, 24, 24);
+    const moonMat = new THREE.MeshBasicMaterial({ color: 0xDDE0FF });
+    const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+    scene.add(moonMesh);
+    const moonHaloGeo = new THREE.SphereGeometry(4.8, 14, 14);
+    const moonHaloMat = new THREE.MeshBasicMaterial({ color: 0x9090D8, transparent: true, opacity: 0.22 });
+    moonMesh.add(new THREE.Mesh(moonHaloGeo, moonHaloMat));
+
+    // Orbit angles (theta along a horizontal arc, pi range = horizon-to-horizon)
+    // Day: sun arc goes from θ=0 (East, right) to θ=π (West, left), peak at θ=π/2 (top)
+    // Night: moon arc goes from θ=π (West, left) to θ=0 (East, right) on opposite side
+    function celestialPos(theta, isDay) {
+        const R = 62; // orbital radius
+        // East = +X, West = -X, Up = +Y, behind camera = -Z
+        const x = isDay ? Math.cos(theta) * R : -Math.cos(theta) * R;
+        const y = Math.sin(theta) * 28 + 2;  // peak height at theta=π/2 → +30 units
+        const z = -55;
+        return { x, y, z };
+    }
+
+    // Target theta (day=sun high, night=moon high)
+    let sunTargetTheta  = isDayMode ? Math.PI * 0.55 : -0.3;   // below horizon at night
+    let moonTargetTheta = isDayMode ? -0.25 : Math.PI * 0.55;  // below horizon at day
+    let sunTheta  = sunTargetTheta;
+    let moonTheta = moonTargetTheta;
+
+    // ── TERRAIN ──
+    const terrGeo = new THREE.PlaneGeometry(180, 160, 28, 28);
+    const tPos = terrGeo.attributes.position;
+    for (let i = 0; i < tPos.count; i++) {
+        const tx = tPos.getX(i), ty = tPos.getY(i);
+        const d = Math.abs(tx);
+        let z = 0;
+        if (d > 18) {
+            z = Math.pow((d - 18) * 0.08, 1.6) * 18;
+            z += Math.sin(tx * 0.18) * Math.cos(ty * 0.14) * 4.5;
+            z += Math.sin(tx * 0.35) * 1.5;
+        } else {
+            z = -3 + Math.sin(ty * 0.18) * 0.8;
+        }
+        tPos.setZ(i, z);
+    }
+    terrGeo.computeVertexNormals();
+    const terrMat = new THREE.MeshPhongMaterial({
+        color: isDayMode ? 0x2A5A30 : 0x071008,
+        flatShading: true, shininess: 0, specular: 0x000000
+    });
+    const terrain = new THREE.Mesh(terrGeo, terrMat);
+    terrain.rotation.x = -Math.PI / 2;
+    terrain.position.y = -5;
+    scene.add(terrain);
+
+    // ── LAKE / RIVER ──
+    const waterGeo = new THREE.PlaneGeometry(36, 160, 2, 2);
+    const waterMat = new THREE.MeshPhongMaterial({
+        color: isDayMode ? 0x1a96c8 : 0x080e1c,
+        transparent: true, opacity: 0.65,
+        shininess: 80, specular: 0xaaccff,
+        flatShading: true
+    });
+    const water = new THREE.Mesh(waterGeo, waterMat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(0, -2.2, 0);
+    scene.add(water);
+
+    // ── PINE TREES ──
+    function makePine() {
+        const g = new THREE.Group();
+        const lm = new THREE.MeshPhongMaterial({ color: isDayMode ? 0x0d7a4e : 0x04260e, flatShading: true, shininess: 0 });
+        const tm = new THREE.MeshPhongMaterial({ color: 0x5c3510, flatShading: true });
+        [[2.2,4,5],[1.7,3.2,6.5],[1.1,2.2,7.6]].forEach(([r,h,y]) => {
+            const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), lm);
+            c.position.y = y; g.add(c);
+        });
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 3.2, 6), tm);
+        trunk.position.y = 1.6; g.add(trunk);
+        return g;
+    }
+    for (let i = 0; i < 50; i++) {
+        const t = makePine();
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const x = side * (22 + Math.random() * 52);
+        const z = (Math.random() - 0.5) * 140;
+        const d = Math.abs(x);
+        let yBase = -5 + Math.pow((d - 18) * 0.08, 1.6) * 18;
+        yBase += Math.sin(x * 0.18) * Math.cos(z * 0.14) * 4.5;
+        t.position.set(x, yBase - 0.8, z);
+        const sc = 0.55 + Math.random() * 0.55;
+        t.scale.setScalar(sc);
+        t.rotation.y = Math.random() * Math.PI * 2;
+        scene.add(t);
+    }
+
+    // ── STARS (night) ──
+    const starCount = 220;
+    const starBuf = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+        starBuf[i]   = (Math.random() - 0.5) * 180;
+        starBuf[i+1] = 14 + Math.random() * 75;
+        starBuf[i+2] = -65 - Math.random() * 40;
+    }
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starBuf, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.65, transparent: true, opacity: isDayMode ? 0 : 0.85 });
+    scene.add(new THREE.Points(starGeo, starMat));
+
+    // ── CLOUDS (day) ──
+    const clouds = [];
+    const cloudMat = new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: isDayMode ? 0.6 : 0, flatShading: true, shininess: 0 });
+    function makeCloud() {
+        const g = new THREE.Group();
+        const geo = new THREE.DodecahedronGeometry(3.5, 1);
+        [[0,0,0],[-2.5,-0.6,0.5],[2.5,-0.4,-0.5]].forEach(([x,y,z], i) => {
+            const m = new THREE.Mesh(geo, cloudMat);
+            m.position.set(x, y, z);
+            m.scale.setScalar(i === 0 ? 1 : 0.72);
+            g.add(m);
+        });
+        return g;
+    }
+    for (let i = 0; i < 5; i++) {
+        const c = makeCloud();
+        c.position.set((Math.random() - 0.5) * 120, 18 + Math.random() * 10, -45 - Math.random() * 22);
+        scene.add(c); clouds.push(c);
+    }
+
+    // ── ANIMATE ──
+    const targetFog   = new THREE.Color(isDayMode ? dayFogCol : nightFogCol);
+    let tAmb = isDayMode ? 0.5 : 0.12;
+    let tSun = isDayMode ? 0.9 : 0.0;
+    let tMoon = isDayMode ? 0.0 : 0.4;
+    const tTerrCol = new THREE.Color(isDayMode ? 0x2A5A30 : 0x071008);
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Gentle camera drift
+        camera.position.x = Math.sin(Date.now() * 0.00006) * 7;
+        camera.lookAt(0, 3, 0);
+
+        // Lerp fog / lights
+        scene.fog.color.lerp(targetFog, 0.02);
+        renderer.setClearColor(scene.fog.color, 1);
+        ambient.intensity  += (tAmb  - ambient.intensity)  * 0.025;
+        sunDir.intensity   += (tSun  - sunDir.intensity)   * 0.025;
+        moonDir.intensity  += (tMoon - moonDir.intensity)  * 0.025;
+        terrMat.color.lerp(tTerrCol, 0.025);
+
+        // Celestial orbit lerp
+        sunTheta  += (sunTargetTheta  - sunTheta)  * 0.018;
+        moonTheta += (moonTargetTheta - moonTheta) * 0.018;
+
+        const sp = celestialPos(sunTheta, true);
+        sunMesh.position.set(sp.x, sp.y, sp.z);
+        sunDir.position.copy(sunMesh.position);
+
+        const mp = celestialPos(moonTheta, false);
+        moonMesh.position.set(mp.x, mp.y, mp.z);
+        moonDir.position.copy(moonMesh.position);
+
+        // Star twinkle & cloud drift
+        starMat.opacity += ((isDayMode ? 0 : 0.85) - starMat.opacity) * 0.025;
+        starMat.size = 0.45 + Math.sin(Date.now() * 0.005) * 0.22;
+        cloudMat.opacity += ((isDayMode ? 0.6 : 0) - cloudMat.opacity) * 0.025;
+        clouds.forEach(c => { c.position.x += 0.01; if (c.position.x > 85) c.position.x = -85; });
+
+        // Water ripple
+        const wp = waterGeo.attributes.position;
+        for (let i = 0; i < wp.count; i++) {
+            const wx = wp.getX(i), wz = wp.getY(i);
+            wp.setZ(i, Math.sin(wx * 0.3 + Date.now() * 0.0012) * 0.18 + Math.sin(wz * 0.25 + Date.now() * 0.0009) * 0.12);
+        }
+        wp.needsUpdate = true;
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+    });
+
+    // ── THEME SWITCH ──
+    const skyCheckbox = document.getElementById('sky-checkbox');
+    const skyThumb    = document.getElementById('sky-thumb');
+
+    function applyTheme(day) {
+        isDayMode = day;
+        document.body.classList.toggle('day', day);
+        skyCheckbox.checked = day;
+        skyThumb.textContent = day ? '☀️' : '🌙';
+        localStorage.setItem('sky', day ? 'day' : 'night');
+
+        sunTargetTheta  = day ? Math.PI * 0.55 : -0.3;
+        moonTargetTheta = day ? -0.25 : Math.PI * 0.55;
+
+        targetFog.setHex(day ? 0xc8dff7 : 0x080810);
+        tAmb  = day ? 0.5  : 0.12;
+        tSun  = day ? 0.9  : 0.0;
+        tMoon = day ? 0.0  : 0.4;
+        tTerrCol.setHex(day ? 0x2A5A30 : 0x071008);
+    }
+
+    skyCheckbox.addEventListener('change', () => applyTheme(skyCheckbox.checked));
+    applyTheme(isDayMode);
+    window.__applyTheme = applyTheme;
+    window.__isDayMode = () => isDayMode;
+})();
+
+
+// ═══════════════════════════════════════════════════════
+//  APP  LOGIC
+// ═══════════════════════════════════════════════════════
+const EXAMS = [
+    { code:'BCS401',   name:'Analysis & Design of Algorithms',    date:'2026-06-22T14:00:00+05:30' },
+    { code:'BCS402',   name:'Microcontrollers',                   date:'2026-06-24T14:00:00+05:30' },
+    { code:'BCS403',   name:'Database Management System',         date:'2026-06-29T14:00:00+05:30' },
+    { code:'BUHK408',  name:'Universal Human Values',             date:'2026-07-01T14:00:00+05:30' },
+    { code:'BCS405A',  name:'Discrete Mathematical Structures',   date:'2026-07-03T14:00:00+05:30' },
+    { code:'BCSL456D', name:'Technical Writing using LaTeX',      date:'2026-07-07T14:00:00+05:30' },
+    { code:'BBOC407',  name:'Biology for Engineers',              date:'2026-07-09T14:00:00+05:30' },
+];
+EXAMS.forEach(e => {
+    e.start = new Date(e.date).getTime();
+    e.end   = e.start + 3 * 60 * 60 * 1000;
+});
+
+// Auto day/night based on real time if no preference
+if (!localStorage.getItem('sky')) {
+    const h = new Date().getHours();
+    if (h >= 6 && h < 19) window.__applyTheme && window.__applyTheme(true);
+}
+
+// ── COMMUTE ──
+let travelMin = parseInt(localStorage.getItem('commute_mins')) || 60;
+const commuteModal  = document.getElementById('commute-modal');
+const commuteOpts   = document.getElementById('commute-options');
+const commuteSave   = document.getElementById('commute-save');
+document.getElementById('commute-btn').addEventListener('click', () => commuteModal.classList.add('open'));
+commuteSave.addEventListener('click', () => { commuteModal.classList.remove('open'); localStorage.setItem('commute_mins', travelMin); });
+commuteOpts.querySelectorAll('.commute-btn').forEach(btn => {
+    if (parseInt(btn.dataset.t) === travelMin) { commuteOpts.querySelector('.active').classList.remove('active'); btn.classList.add('active'); }
+    btn.addEventListener('click', () => {
+        commuteOpts.querySelectorAll('.commute-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        travelMin = parseInt(btn.dataset.t);
+    });
+});
+if (!localStorage.getItem('commute_mins')) setTimeout(() => commuteModal.classList.add('open'), 700);
+
+// ── FOCUS MODE ──
+const focusScrim = document.getElementById('focus-scrim');
+document.getElementById('focus-btn').addEventListener('click', () => { focusScrim.classList.add('open'); startFocusTick(); });
+document.getElementById('focus-exit').addEventListener('click', () => { focusScrim.classList.remove('open'); stopFocusTick(); });
+let focusInterval = null;
+function startFocusTick() { stopFocusTick(); updateFocus(); focusInterval = setInterval(updateFocus, 50); }
+function stopFocusTick()  { if (focusInterval) { clearInterval(focusInterval); focusInterval = null; } }
+
+// ── BUILD CARDS ──
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#f59e0b','#10b981','#14b8a6','#0ea5e9','#6366f1','#8b5cf6','#ec4899'];
+const grid = document.getElementById('cards-grid');
+
+function buildCards() {
+    grid.innerHTML = '';
+    EXAMS.forEach((ex, i) => {
+        const d = new Date(ex.start);
+        const mColor = MONTH_COLORS[d.getMonth()];
+        const card = document.createElement('div');
+        card.className = 'exam-card';
+        card.id = `card-${i}`;
+        card.innerHTML = `
+            <div class="card-spotlight" id="spot-${i}"></div>
+            <div class="card-body">
+                <div class="card-top">
+                    <div class="cal-widget">
+                        <div class="cal-month" style="background:${mColor}">${MONTHS[d.getMonth()]}</div>
+                        <div class="cal-day">${d.getDate()}</div>
+                    </div>
+                    <div class="status-pill" id="pill-${i}">
+                        <div class="status-dot" id="dot-${i}" style="background:#94a3b8"></div>
+                        <span id="pill-txt-${i}">Upcoming</span>
+                    </div>
+                </div>
+                <div class="card-subject">${ex.name}</div>
+                <div class="card-code">${ex.code}</div>
+                <div class="card-footer-row">
+                    <div class="card-time-label">
+                        <span>🕑</span> 2:00 PM – 5:00 PM
+                    </div>
+                    <div class="card-countdown-chip" id="ctchip-${i}">--</div>
+                </div>
+            </div>
+        `;
+
+        // 3D tilt + spotlight
+        card.addEventListener('mousemove', e => {
+            const r = card.getBoundingClientRect();
+            const x = e.clientX - r.left, y = e.clientY - r.top;
+            const cx = r.width / 2, cy = r.height / 2;
+            card.style.transform = `perspective(900px) rotateX(${((cy - y) / cy) * 11}deg) rotateY(${((x - cx) / cx) * 11}deg) translateY(-4px)`;
+            const spot = document.getElementById(`spot-${i}`);
+            spot.style.left = `${x}px`;
+            spot.style.top  = `${y}px`;
+            spot.style.opacity = '1';
+        });
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = '';
+            document.getElementById(`spot-${i}`).style.opacity = '0';
+        });
+
+        grid.appendChild(card);
+    });
+}
+buildCards();
+
+// ── FORMATTERS ──
+function fmt(ms) {
+    if (ms < 0) ms = 0;
+    const d = Math.floor(ms / 86400000);
+    const h = Math.floor((ms % 86400000) / 3600000);
+    const m = Math.floor((ms % 3600000)  / 60000);
+    const s = Math.floor((ms % 60000)    / 1000);
+    return { d, h, m, s, ms: Math.floor(ms % 1000) };
+}
+function fmtHero(ms) {
+    const {d,h,m,s} = fmt(ms);
+    return d > 0
+        ? `${String(d).padStart(2,'0')}:${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
+        : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function fmtMini(ms) {
+    const {d,h,m,s} = fmt(ms);
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m ${s}s`;
+}
+
+// ── MAIN TICK ──
+const hudClock  = document.getElementById('hud-clock');
+const heroTime  = document.getElementById('hero-time');
+const heroCode  = document.getElementById('hero-code');
+const heroName  = document.getElementById('hero-name');
+const heroEye   = document.getElementById('hero-eye');
+const alertEl   = document.getElementById('alert-toast');
+const toastInner= document.getElementById('toast-inner');
+const toastIcon = document.getElementById('toast-icon');
+const toastLbl  = document.getElementById('toast-label');
+const toastMsg  = document.getElementById('toast-msg');
+const toastPill = document.getElementById('toast-pill');
+
+function tick() {
+    const now = Date.now();
+    const nd  = new Date(now);
+    hudClock.textContent = nd.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+    let focusEx = null, state = null;
+
+    // Reset cards
+    document.querySelectorAll('.exam-card').forEach(c => c.classList.remove('is-next', 'is-done'));
+
+    for (let i = 0; i < EXAMS.length; i++) {
+        const ex = EXAMS[i];
+        const pill    = document.getElementById(`pill-${i}`);
+        const dot     = document.getElementById(`dot-${i}`);
+        const pillTxt = document.getElementById(`pill-txt-${i}`);
+        const chip    = document.getElementById(`ctchip-${i}`);
+        const card    = document.getElementById(`card-${i}`);
+
+        if (now >= ex.end) {
+            dot.style.background = '#10b981';
+            pillTxt.textContent = 'Done ✓';
+            chip.textContent = 'Completed';
+            card.classList.add('is-done');
+        } else if (now >= ex.start) {
+            dot.style.background = '#f43f5e';
+            dot.style.boxShadow = '0 0 8px #f43f5e';
+            pillTxt.textContent = 'Ongoing';
+            chip.textContent = 'Ends: ' + fmtMini(ex.end - now);
+            if (!focusEx) { focusEx = ex; state = 'ongoing'; card.classList.add('is-next'); }
+        } else {
+            dot.style.background = '#94a3b8';
+            dot.style.boxShadow = '';
+            pillTxt.textContent = 'Upcoming';
+            chip.textContent = fmtMini(ex.start - now);
+            if (!focusEx) { focusEx = ex; state = 'upcoming'; card.classList.add('is-next'); }
+        }
+    }
+
+    if (!focusEx) {
+        heroTime.textContent = 'ALL DONE';
+        heroCode.textContent = '🎉';
+        heroName.textContent = 'Semester 4 Complete';
+        heroEye.textContent  = '🎓 Finished';
+        alertEl.classList.remove('visible');
+        return;
+    }
+
+    const targetMs = state === 'ongoing' ? focusEx.end - now : focusEx.start - now;
+    heroTime.textContent = fmtHero(targetMs);
+    heroCode.textContent = focusEx.code;
+    heroName.textContent = state === 'ongoing' ? `${focusEx.name} — ends in` : focusEx.name;
+    heroEye.textContent  = state === 'ongoing' ? '🔴 Exam Ongoing' : '📅 Next Exam';
+
+    // ── ALERT TOAST ──
+    if (state === 'upcoming') {
+        const mins = Math.floor((focusEx.start - now) / 60000);
+        alertEl.classList.add('visible');
+
+        if (mins > travelMin + 90) {
+            toastInner.className = 'toast-inner toast-ok';
+            toastIcon.textContent = '📚';
+            toastLbl.textContent = 'Study Window';
+            toastMsg.innerHTML = `Open your notes — <strong>${fmtMini(focusEx.start - now)}</strong> until <strong>${focusEx.code}</strong>`;
+            toastPill.textContent = fmtMini(focusEx.start - now) + ' left';
+        } else if (mins > travelMin + 30) {
+            toastInner.className = 'toast-inner toast-warn';
+            toastIcon.textContent = '🎒';
+            toastLbl.textContent = 'Pack Up';
+            toastMsg.innerHTML = `Pack your bag & hall ticket for <strong>${focusEx.code}</strong>`;
+            toastPill.textContent = fmtMini(focusEx.start - now) + ' left';
+        } else if (mins > travelMin) {
+            toastInner.className = 'toast-inner toast-go';
+            toastIcon.textContent = '🚌';
+            toastLbl.textContent = 'Leave Soon';
+            toastMsg.innerHTML = `Depart in <strong>${mins - travelMin} min</strong> to reach on time`;
+            toastPill.textContent = `Leave in ${mins - travelMin}m`;
+        } else {
+            toastInner.className = 'toast-inner toast-fire';
+            toastIcon.textContent = '🚨';
+            toastLbl.textContent = 'Leave Now!';
+            toastMsg.innerHTML = `<strong>Go immediately</strong> — ${travelMin} min commute needed!`;
+            toastPill.textContent = 'DEPART NOW';
+        }
+    } else {
+        alertEl.classList.remove('visible');
+    }
+}
+
+setInterval(tick, 1000);
+tick();
+
+// ── FOCUS TICK ──
+const ringEl   = document.getElementById('ring-progress');
+const CIRCUM   = 2 * Math.PI * 120; // 753.98
+
+function updateFocus() {
+    const now = Date.now();
+    let focusEx = null, state = null;
+    for (const ex of EXAMS) {
+        if (now < ex.end) { focusEx = ex; state = now >= ex.start ? 'ongoing' : 'upcoming'; break; }
+    }
+    if (!focusEx) {
+        document.getElementById('f-code').textContent = 'DONE';
+        document.getElementById('f-name').textContent = 'Semester complete!';
+        document.getElementById('focus-hms').textContent = '00:00:00';
+        document.getElementById('focus-ms').textContent = '.000';
+        ringEl.style.strokeDashoffset = CIRCUM;
+        return;
+    }
+
+    document.getElementById('f-code').textContent = focusEx.code;
+    document.getElementById('f-name').textContent = focusEx.name;
+
+    const target = state === 'ongoing' ? focusEx.end : focusEx.start;
+    const diff   = Math.max(0, target - now);
+    const {d,h,m,s,ms: msVal} = fmt(diff);
+
+    const dayLbl = document.getElementById('focus-days-label');
+    const hmsDom = document.getElementById('focus-hms');
+    const msDom  = document.getElementById('focus-ms');
+
+    if (d > 0) {
+        dayLbl.textContent = `${d} DAY${d>1?'S':''} LEFT`;
+        hmsDom.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    } else {
+        dayLbl.textContent = 'LEFT';
+        hmsDom.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+    msDom.textContent = `.${String(msVal).padStart(3,'0')}`;
+
+    document.getElementById('fs-hours').textContent = Math.floor(diff / 3600000).toLocaleString();
+    document.getElementById('fs-secs').textContent  = Math.floor(diff / 1000).toLocaleString();
+    document.getElementById('fs-status').textContent = state === 'ongoing' ? '🔴 Live' : '🟢 Prep';
+
+    // Ring: map remaining to 0–100%
+    const totalRange = state === 'ongoing' ? 3*3600000 : 24*3600000;
+    const pct = Math.min(1, diff / totalRange);
+    ringEl.style.strokeDashoffset = CIRCUM * (1 - pct);
+
+    // Focus toast
+    const ft = document.getElementById('focus-toast');
+    if (state === 'ongoing') {
+        ft.style.color = '#f43f5e';
+        ft.innerHTML = '🔴 Exam is live — focus and write well!';
+    } else {
+        const mins = Math.floor(diff / 60000);
+        if (mins > travelMin) {
+            ft.style.color = '#10b981';
+            ft.innerHTML = '🟢 Revision phase — you have time.';
+        } else {
+            ft.style.color = '#f43f5e';
+            ft.innerHTML = '🚨 <strong>Leave for exam hall now!</strong>';
+        }
+    }
+}
+</script>
+</body>
+</html>
